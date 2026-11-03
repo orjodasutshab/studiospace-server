@@ -254,6 +254,61 @@ app.delete(
   })
 );
 
+// ---------------------------------------------------------------- reviews
+app.get(
+  '/api/studios/:id/reviews',
+  wrap(async (req, res) => {
+    if (!ObjectId.isValid(req.params.id)) return res.json([]);
+    const db = await getDb();
+    const list = await db.collection('reviews').find({ studioId: req.params.id }).sort({ createdAt: -1 }).toArray();
+    res.json(list.map(withId));
+  })
+);
+
+app.post(
+  '/api/studios/:id/reviews',
+  requireAuth,
+  wrap(async (req, res) => {
+    if (!ObjectId.isValid(req.params.id)) return res.status(404).json({ error: 'Studio not found' });
+    const rating = Number(req.body.rating);
+    const comment = String(req.body.comment || '').trim();
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'Please choose a rating from 1 to 5' });
+    }
+    if (comment.length < 5) return res.status(400).json({ error: 'Please write at least 5 characters' });
+
+    const db = await getDb();
+    const studio = await db.collection('studios').findOne({ _id: new ObjectId(req.params.id) });
+    if (!studio) return res.status(404).json({ error: 'Studio not found' });
+    if (studio.ownerEmail === req.user.email) {
+      return res.status(400).json({ error: 'You cannot review your own studio' });
+    }
+    const reviews = db.collection('reviews');
+    if (await reviews.findOne({ studioId: String(studio._id), userEmail: req.user.email })) {
+      return res.status(409).json({ error: 'You have already reviewed this studio' });
+    }
+
+    const review = {
+      studioId: String(studio._id),
+      userEmail: req.user.email,
+      userName: req.user.name,
+      userPhoto: req.user.photoUrl || '',
+      rating,
+      comment: comment.slice(0, 600),
+      createdAt: new Date(),
+    };
+    const result = await reviews.insertOne(review);
+
+    // Update the studio's average rating without needing every old review.
+    const oldCount = studio.reviewCount || 0;
+    const newCount = oldCount + 1;
+    const newRating = Math.round((((studio.rating || 0) * oldCount + rating) / newCount) * 10) / 10;
+    await db.collection('studios').updateOne({ _id: studio._id }, { $set: { rating: newRating, reviewCount: newCount } });
+
+    res.status(201).json({ review: withId({ ...review, _id: result.insertedId }), rating: newRating, reviewCount: newCount });
+  })
+);
+
 // ---------------------------------------------------------------- bookings
 app.post(
   '/api/bookings',
