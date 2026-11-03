@@ -1,0 +1,21 @@
+{
+  "name": "studiospace-server",
+  "version": "1.0.0",
+  "description": "StudioSpace Express + MongoDB API",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "seed": "node seed.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
+    "mongodb": "^6.20.0"
+  }
+}
